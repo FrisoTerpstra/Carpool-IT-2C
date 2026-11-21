@@ -92,54 +92,6 @@ docker compose stop phpmyadmin
 Change `PHPMYADMIN_PORT` in `.env` if port 8086 is occupied. The interface is
 bound to this computer's loopback address for local development.
 
-## Learning the Java Setup
-
-Read these files in this order:
-
-1. `DemoprojectApplication.java`: the main method starts Spring Boot.
-   `@SpringBootApplication` lets Spring discover the application's components.
-2. `DevelopmentHomeController.java`: `@RestController` sends a method's return
-   value to the browser. `@GetMapping` connects a URL to a method. This example
-   returns plain text; it does not render an HTML file.
-3. `DevelopmentSecurityConfiguration.java`: `@Configuration` and `@Bean` supply
-   settings to Spring. `@Profile` limits open access to development. The small
-   lambdas configure Spring Security; production sign-in is still unfinished.
-4. `DemoprojectApplicationTests.java`: `@Autowired` lets Spring supply an existing
-   component instead of creating it with `new`. `JdbcTemplate` runs a small SQL
-   query to check the connection. Future feature persistence will use JPA.
-5. `DevelopmentAccessTests.java`: MockMvc sends requests through Spring during
-   tests. Check the request, response status and content separately. The profile
-   test checks exclusion of open development access under `prod`; it does not
-   verify complete production security.
-6. `BookingExample.java`: an ordinary Java exercise with a constructor, a set,
-   validation and exceptions. It is separate from the web application and does
-   not implement database transactions or safe concurrent booking.
-
-Java style follows the existing OOP exercises: four spaces, opening braces on a
-new line, explicit types, descriptive names and `this.` for instance fields and
-methods. Tests use `testMethod_situation_expectedResult` names and separate setup,
-action and assertions. Comments explain Spring concepts and reasons for checks.
-
-### Practice Tasks
-
-- Change the development home message, update its test and run the tests.
-- Add a development GET endpoint such as `/api/example` returning a fixed message.
-  Write a MockMvc test for its response status and content. Use fictional data.
-- Run the standalone exercise and explain why duplicate bookings, full trips and
-  the driver joining their own trip are rejected:
-
-  ```powershell
-  java src/main/java/com/examproject/demoproject/BookingExample.java
-  ```
-
-- Explain the difference between stored MariaDB data and the exercise's `HashSet`,
-  and why that exercise cannot safely handle concurrent bookings.
-- Trace a future HTML/JavaScript request through a controller, service and
-  repository. Agree API fields with teammates before implementing the feature.
-
-Run checks with `docker compose up -d --wait`, then `.\mvnw.cmd clean test`.
-Database tests need Docker. MockMvc does not need a second running web server.
-
 ## Remaining Work
 
 - Add the agreed schema, entities, services and controllers.
