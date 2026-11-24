@@ -9,15 +9,19 @@ DROP TABLE IF EXISTS locations;
 DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
-   id BIGINT NOT NULL AUTO_INCREMENT,
-   microsoft_id VARCHAR(255) NOT NULL,
-   name VARCHAR(150) NOT NULL,
-   email VARCHAR(255) NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    microsoft_id VARCHAR(255) NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+--  language CHAR(2) NULL,
 
-   PRIMARY KEY (id),
+    PRIMARY KEY (id),
 
-   CONSTRAINT uq_users_microsoft_id
+    CONSTRAINT uq_users_microsoft_id
         UNIQUE (microsoft_id)
+
+--     CONSTRAINT chk_users_language
+--         CHECK (language IN ('NL', 'EN'))
 );
 
 CREATE TABLE locations (
@@ -31,7 +35,7 @@ CREATE TABLE locations (
 CREATE TABLE emission_factors (
     id BIGINT NOT NULL AUTO_INCREMENT,
     fuel_type VARCHAR(20) NOT NULL,
-    co2_per_km DECIMAL(10,4) NOT NULL,
+    co2_grams_per_km DECIMAL(10,4) NOT NULL,
 
     PRIMARY KEY (id),
 
@@ -39,7 +43,7 @@ CREATE TABLE emission_factors (
         UNIQUE (fuel_type),
 
     CONSTRAINT chk_emission_factor_nonnegative
-        CHECK (co2_per_km >= 0)
+        CHECK (co2_grams_per_km >= 0)
 );
 
 CREATE TABLE route_distances (
@@ -62,19 +66,21 @@ CREATE TABLE route_distances (
         UNIQUE (from_location_id, to_location_id),
 
     CONSTRAINT chk_route_distance_positive
-        CHECK (distance_in_km > 0)
+        CHECK (distance_in_km > 0),
+
+    CONSTRAINT chk_route_different_locations
+        CHECK (from_location_id <> to_location_id)
 );
 
 CREATE TABLE trips (
     id BIGINT NOT NULL AUTO_INCREMENT,
     driver_id BIGINT NOT NULL,
-    from_location_id BIGINT NOT NULL,
-    to_location_id BIGINT NOT NULL,
+    route_distance_id BIGINT NOT NULL,
     emission_factor_id BIGINT NOT NULL,
     departure_time DATETIME NOT NULL,
     total_seats INT NOT NULL,
+    free_seats INT NOT NULL,
     status VARCHAR(20) NOT NULL,
-    return_group_id BIGINT NULL,
 
     PRIMARY KEY (id),
 
@@ -82,23 +88,22 @@ CREATE TABLE trips (
         FOREIGN KEY (driver_id)
         REFERENCES users(id),
 
-    CONSTRAINT fk_trips_distances_from
-        FOREIGN KEY (from_location_id)
-        REFERENCES locations(id),
-
-    CONSTRAINT fk_trips_distances_to
-        FOREIGN KEY (to_location_id)
-        REFERENCES locations(id),
+    CONSTRAINT fk_trips_route_distance_id
+        FOREIGN KEY (route_distance_id)
+        REFERENCES route_distances(id),
 
     CONSTRAINT fk_trips_emission_factor_id
         FOREIGN KEY (emission_factor_id)
         REFERENCES emission_factors(id),
 
     CONSTRAINT chk_trips_total_seats
-        CHECK ( total_seats > 0),
+        CHECK (total_seats > 0),
 
-    CONSTRAINT chk_trips_different_locations
-        CHECK ( from_location_id <> to_location_id)
+    CONSTRAINT chk_trips_free_seats
+        CHECK (free_seats BETWEEN 0 AND total_seats),
+
+    CONSTRAINT chk_trips_status
+        CHECK (status IN ('SCHEDULED', 'CANCELLED'))
 );
 
 CREATE TABLE bookings (
@@ -119,9 +124,6 @@ CREATE TABLE bookings (
         FOREIGN KEY (trip_id)
         REFERENCES trips(id),
 
-    CONSTRAINT uq_passenger_id_and_trip_id
-        UNIQUE (passenger_id, trip_id),
-
     CONSTRAINT chk_bookings_status
         CHECK ( status IN ('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED'))
 );
@@ -130,7 +132,7 @@ CREATE TABLE notifications (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
     trip_id BIGINT NOT NULL,
-    message VARCHAR(255) NOT NULL,
+    type VARCHAR(30) NOT NULL,
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -143,4 +145,15 @@ CREATE TABLE notifications (
     CONSTRAINT fk_notifications_trip_id
         FOREIGN KEY (trip_id)
         REFERENCES trips(id)
+
+
+--  CONSTRAINT chk_notifications_type
+--     CHECK (type IN (
+    --     'REQUEST_RECEIVED',
+    --     'REQUEST_ACCEPTED',
+    --     'REQUEST_REJECTED',
+    --     'REQUEST_CANCELLED',
+    --     'TRIP_EDITED',
+    --     'TRIP_CANCELLED'
+--     ))
 );
