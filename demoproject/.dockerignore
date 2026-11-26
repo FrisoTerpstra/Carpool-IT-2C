@@ -1,0 +1,9 @@
+# Keep credentials, local build output and IDE files out of the build context.
+.env
+.env.*
+target/
+.idea/
+.vscode/
+*.iml
+.git/
+database/

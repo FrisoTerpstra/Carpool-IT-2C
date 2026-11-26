@@ -5,8 +5,10 @@ Security, OAuth2 Client, Data JPA, MariaDB Driver, Mail and Validation.
 
 ## Local Setup
 
-Install JDK 25 and Docker Desktop, and start Docker Desktop. No separate Maven
-or MariaDB installation is required. Run all commands from this project folder.
+Install Docker Desktop and start it. Docker builds and runs Java, MariaDB and
+phpMyAdmin. JDK 25 is needed only for IntelliJ/local Maven development and tests;
+no separate Maven or MariaDB installation is required. Run commands from this
+`demoproject` folder, where `docker-compose.yml` is located.
 
 1. Copy the configuration template (only if `.env` does not already exist):
 
@@ -18,24 +20,50 @@ or MariaDB installation is required. Run all commands from this project folder.
    format without quotes so Docker Compose and Spring can both read it.
    `.env` is ignored by Git. Each developer uses their own file.
 
-3. Start the local database and phpMyAdmin, and wait for the database to become healthy:
+3. Build and start the API, database and phpMyAdmin:
 
    ```powershell
-   docker compose up -d --wait
+   docker compose up -d --build
    docker compose ps
    ```
 
-4. Build and test against that database:
+Open http://localhost:8085/ after the API has finished starting. The first build
+downloads Java images and Maven dependencies and can take several minutes.
+After pulling Java changes, run `docker compose up -d --build` again to rebuild
+the image. Java source changes are not automatically reloaded into the container.
 
-   ```powershell
-   .\mvnw.cmd clean test
-   ```
+```powershell
+docker compose logs --tail 50 api
+docker compose stop
+```
 
-5. Run Spring Boot:
+The API has no readiness health check yet. A running container is not proof the
+application is ready; wait for `Started DemoprojectApplication` in its logs.
 
-   ```powershell
-   .\mvnw.cmd spring-boot:run
-   ```
+## Run Java from IntelliJ or Maven Instead
+
+Use this workflow for editing and debugging Java with a local JDK 25.
+Stop the API container first so it does not occupy the same port:
+
+```powershell
+docker compose stop api
+docker compose up -d --wait mariadb phpmyadmin
+.\mvnw.cmd spring-boot:run
+```
+
+Alternatively run `DemoprojectApplication` in IntelliJ, using the project root
+as the working directory so it can read `.env`. Do not run the API container
+and local Java on the same port. Stop the local application before switching
+back to the full Docker setup.
+
+The Dockerfile uses JDK 25 to build the JAR and a Java 25 runtime to execute it.
+It does not run database integration tests during the image build. Run them
+separately with the database available:
+
+```powershell
+docker compose up -d --wait mariadb
+.\mvnw.cmd clean test
+```
 
 Open http://localhost:8085/ to see the backend confirmation message. No website
 account or login is required during local development. Stop the application with Ctrl+C.
@@ -46,9 +74,6 @@ state-changing requests. This configuration is excluded when `prod` is active.
 Security and OAuth2 Client dependencies remain for the future Microsoft Entra
 integration, which must enforce staff-only access before a real pilot. No carpool
 pages or feature API endpoints have been implemented yet.
-
-For IntelliJ, use JDK 25 and the project root as the run configuration's working
-directory so Spring finds `.env`.
 
 ## Database
 
@@ -65,10 +90,24 @@ The named Docker volume keeps data when the container stops or is recreated.
 Changing passwords in `.env` does not change users in an existing database;
 update those database users deliberately or recreate a disposable database.
 
-There is no `schema.sql` or `data.sql` yet. Hibernate table generation and SQL
-initialisation are disabled. The test executes `SELECT 1` against MariaDB to
-verify the connection without requiring tables. The database must be running
-for tests. Agree the schema and development reset behaviour before enabling scripts.
+### Add the Team's Schema Later
+
+`database/init/` is mounted read-only at `/docker-entrypoint-initdb.d` in MariaDB.
+Only `.gitkeep` is supplied to keep this empty directory in Git. No SQL file,
+table definition or seed data has been added. The team can place its approved
+`schema.sql` there later; a schema elsewhere in the repository is not loaded
+automatically. Use the database name configured by `MARIADB_DATABASE`.
+
+MariaDB runs these SQL files in filename order only when initialising a new,
+empty database volume. Restarting existing containers or pulling an updated SQL
+file does not apply schema changes to an existing volume. Agree how to apply
+those changes separately, for example by importing reviewed SQL through
+phpMyAdmin. Check whether a script deletes data before importing it. Do not
+delete an existing volume just to apply an update unless its data is disposable.
+
+Hibernate table generation and Spring SQL initialisation remain disabled, so
+they do not compete with Docker's initialisation. The test executes `SELECT 1`
+against MariaDB without requiring tables. Docker must be running for these tests.
 
 ## View the Database in Your Browser
 
@@ -78,9 +117,16 @@ from your `.env` file. Database credentials are still required even though the
 Java website has no development login. Select `carpool` in the sidebar to inspect tables or use the
 SQL tab. There are no tables until the team adds the schema.
 
-phpMyAdmin connects to `mariadb:3306` on the internal Docker network; IntelliJ
-and Spring Boot connect through `localhost:3307`. Both access the same database.
+phpMyAdmin and the API container connect to `mariadb:3306` inside Docker.
+Java running in IntelliJ/Maven and database clients use `localhost:3307`.
+The API's connection is supplied by Compose environment variables, overriding
+the local connection in `application.properties`. Both workflows use the same database.
 Spring Boot does not need to be running to use phpMyAdmin.
+
+The API container listens on 8080 internally. `SERVER_PORT` in `.env` chooses
+its published local port, normally 8085. For local Java, that same setting is
+read by `application.properties`. `DB_PORT` and `PHPMYADMIN_PORT` choose the
+published database and phpMyAdmin ports. Internal Docker ports stay unchanged.
 
 To start or stop just the browser interface:
 
